@@ -35,3 +35,7 @@ Before running or building GDM, make sure you have the following installed:
 ```bash
 git clone [https://github.com/your-username/go-download-manager.git](https://github.com/your-username/go-download-manager.git)
 cd go-download-manager
+```
+
+## Support me on Ko-FI
+https://ko-fi.com/adi3man
