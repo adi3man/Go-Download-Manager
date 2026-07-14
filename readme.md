@@ -1,4 +1,4 @@
-# Go Download Manager (GDM) 🚀
+# Go Download Manager (GDM)
 
 **Go Download Manager (GDM)** is a lightweight, fast, and modern desktop download manager. Built with **Go** and powered by the **Fyne v2** GUI framework, GDM offers an intuitive interface to handle local downloads while supporting seamless integration with web browsers via a background REST API.
 
@@ -6,7 +6,7 @@
 
 ##  Features
 
-*   **⚡ Full Download Control (Pause & Resume)**: Pause downloads at any time and resume them from where they left off using HTTP Range Requests, avoiding the need to restart from scratch.
+*   ** Full Download Control (Pause & Resume)**: Pause downloads at any time and resume them from where they left off using HTTP Range Requests, avoiding the need to restart from scratch.
 *   ** Refresh Download Address**: Update the download URL directly from the right-click menu if a link expires, and instantly resume your progress.
 *   ** Contextual Right-Click Menu**: Access essential actions (*Pause, Resume, Refresh URL, and Delete Task*) precisely at your cursor position.
 *   ** Real-Time Information**: Clean list view displaying Filename, Size (Progress / Total), Status & Speed (*real-time speed tracking*), and Date Added.
