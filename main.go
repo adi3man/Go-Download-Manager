@@ -3,15 +3,18 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
-	"go-download-manager/downloader" // Pastikan modul internal Anda masih sesuai
+	"go-download-manager/downloader" // Pastikan modul internal Anda sesuai
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -27,68 +30,78 @@ var currentLang = "en"
 
 var T = map[string]map[string]string{
 	"en": {
-		"title":          "Go Download Manager",
-		"tab_tasks":      "Tasks",
-		"tab_settings":   "Settings",
-		"btn_add":        "Add New Download",
-		"btn_clear_all":  "Clear Finished",
-		"status_ready":   "Ready",
-		"status_conn":    "Connecting",
-		"status_down":    "Downloading",
-		"status_paused":  "Paused",
-		"status_fail":    "Failed",
-		"status_done":    "Finished",
-		"setting_dir":    "Main Download Directory",
-		"setting_cat":    "File Extension Categories (Comma separated)",
-		"btn_browse":     "Choose Folder",
-		"btn_save_cat":   "Save Category Settings",
-		"dialog_saved":   "Saved",
-		"dialog_saved_m": "Category settings updated successfully!",
-		"dialog_add_t":   "Add Download",
-		"dialog_add_b":   "Start",
-		"dialog_cancel":  "Cancel",
-		"lang_label":     "Language / Bahasa:",
-		"unknown_size":   "Unknown size",
-		"col_name":       "Name",
-		"col_size":       "Size",
-		"col_status":     "Status / Speed",
-		"col_date":       "Date Added",
-		"menu_pause":     "Pause",
-		"menu_resume":    "Resume / Start",
-		"menu_refresh":   "Refresh Download Address",
-		"menu_delete":    "Delete Task",
+		"title":            "Go Download Manager",
+		"tab_tasks":        "Tasks",
+		"tab_settings":     "Settings",
+		"btn_add":          "Add New Download",
+		"btn_clear_all":    "Clear Finished",
+		"status_ready":     "Ready",
+		"status_conn":      "Connecting",
+		"status_down":      "Downloading",
+		"status_paused":    "Paused",
+		"status_fail":      "Failed",
+		"status_done":      "Finished",
+		"setting_dir":      "Main Download Directory",
+		"setting_cat":      "File Extension Categories (Comma separated)",
+		"btn_browse":       "Choose Folder",
+		"btn_save_cat":     "Save Category Settings",
+		"dialog_saved":     "Saved",
+		"dialog_saved_m":   "Category settings updated successfully!",
+		"dialog_add_t":     "Add Download",
+		"dialog_add_b":     "Start",
+		"dialog_cancel":    "Cancel",
+		"lang_label":       "Language / Bahasa:",
+		"unknown_size":     "Unknown size",
+		"col_name":         "Name",
+		"col_size":         "Size",
+		"col_status":       "Status / Speed",
+		"col_date":         "Date Added",
+		"menu_pause":       "Pause",
+		"menu_resume":      "Resume / Start",
+		"menu_refresh":     "Refresh Download Address",
+		"menu_delete":      "Delete Task",
+		"menu_open_file":   "Open File",
+		"menu_open_folder": "Open Containing Folder",
+		"menu_delete_file": "Delete File from Disk",
+		"dialog_del_title": "Delete File",
+		"dialog_del_msg":   "Are you sure you want to delete this file from your disk?",
 	},
 	"id": {
-		"title":          "Go Download Manager",
-		"tab_tasks":      "Tugas",
-		"tab_settings":   "Pengaturan",
-		"btn_add":        "Tambah Baru",
-		"btn_clear_all":  "Bersihkan Selesai",
-		"status_ready":   "Siap",
-		"status_conn":    "Menghubungkan",
-		"status_down":    "Mengunduh",
-		"status_paused":  "Ditangguhkan",
-		"status_fail":    "Gagal",
-		"status_done":    "Selesai",
-		"setting_dir":    "Direktori Utama Unduhan",
-		"setting_cat":    "Ekstensi File Kategori (Pisahkan dengan koma)",
-		"btn_browse":     "Pilih Folder",
-		"btn_save_cat":   "Simpan Pengaturan Kategori",
-		"dialog_saved":   "Tersimpan",
-		"dialog_saved_m": "Pengaturan kategori berhasil diperbarui!",
-		"dialog_add_t":   "Tambah Unduhan",
-		"dialog_add_b":   "Mulai",
-		"dialog_cancel":  "Batal",
-		"lang_label":     "Language / Bahasa:",
-		"unknown_size":   "Ukuran tidak diketahui",
-		"col_name":       "Nama",
-		"col_size":       "Ukuran",
-		"col_status":     "Status / Kecepatan",
-		"col_date":       "Tanggal Dibuat",
-		"menu_pause":     "Jeda",
-		"menu_resume":    "Lanjutkan / Mulai",
-		"menu_refresh":   "Perbarui Alamat Unduhan (URL)",
-		"menu_delete":    "Hapus Tugas",
+		"title":            "Go Download Manager",
+		"tab_tasks":        "Tugas",
+		"tab_settings":     "Pengaturan",
+		"btn_add":          "Tambah Baru",
+		"btn_clear_all":    "Bersihkan Selesai",
+		"status_ready":     "Siap",
+		"status_conn":      "Menghubungkan",
+		"status_down":      "Mengunduh",
+		"status_paused":    "Ditangguhkan",
+		"status_fail":      "Gagal",
+		"status_done":      "Selesai",
+		"setting_dir":      "Direktori Utama Unduhan",
+		"setting_cat":      "Ekstensi File Kategori (Pisahkan dengan koma)",
+		"btn_browse":       "Pilih Folder",
+		"btn_save_cat":     "Simpan Pengaturan Kategori",
+		"dialog_saved":     "Tersimpan",
+		"dialog_saved_m":   "Pengaturan kategori berhasil diperbarui!",
+		"dialog_add_t":     "Tambah Unduhan",
+		"dialog_add_b":     "Mulai",
+		"dialog_cancel":    "Batal",
+		"lang_label":       "Language / Bahasa:",
+		"unknown_size":     "Ukuran tidak diketahui",
+		"col_name":         "Nama",
+		"col_size":         "Ukuran",
+		"col_status":       "Status / Kecepatan",
+		"col_date":         "Tanggal Dibuat",
+		"menu_pause":       "Jeda",
+		"menu_resume":      "Lanjutkan / Mulai",
+		"menu_refresh":     "Perbarui Alamat Unduhan (URL)",
+		"menu_delete":      "Hapus Tugas",
+		"menu_open_file":   "Buka File",
+		"menu_open_folder": "Buka Folder Lokasi",
+		"menu_delete_file": "Hapus File dari Disk",
+		"dialog_del_title": "Hapus File",
+		"dialog_del_msg":   "Apakah Anda yakin ingin menghapus file ini dari penyimpanan disk?",
 	},
 }
 
@@ -114,6 +127,7 @@ type DownloadItem struct {
 	IsPaused   bool
 	CancelFunc context.CancelFunc
 	Context    context.Context
+	Task       *downloader.DownloadTask
 }
 
 var (
@@ -150,12 +164,22 @@ func main() {
 		myWindow.SetTitle(getText("title"))
 	}
 
-	home, _ := os.UserHomeDir()
-	defaultPath := filepath.Join(home, "Downloads")
+	// Gunakan folder Downloads di home user sebagai path default
+	defaultPath := ""
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		defaultPath = filepath.Join(home, "Downloads")
+	} else {
+		defaultPath = "Downloads"
+	}
+
 	if prefs.String("download_path") == "" {
 		prefs.SetString("download_path", defaultPath)
 	}
+
 	loadCategoryRules(prefs)
+	// Pemanggilan loadDownloadsJSON hanya dilakukan sekali di sini
+	loadDownloadsJSON()
 
 	// --- ROW HEADER DI ATAS DAFTAR DOWNLOAD ---
 	colNameLabel = widget.NewLabelWithStyle(getText("col_name"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
@@ -163,7 +187,6 @@ func main() {
 	colStatLabel = widget.NewLabelWithStyle(getText("col_status"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	colDateLabel = widget.NewLabelWithStyle(getText("col_date"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
-	// Header Grid Layout
 	listHeader := container.NewGridWithColumns(4,
 		colNameLabel,
 		colSizeLabel,
@@ -254,12 +277,11 @@ func main() {
 		},
 	)
 
-	// Interaksi Klik Kanan pada Baris List
 	downloadList.OnSelected = func(id widget.ListItemID) {
 		downloadList.Unselect(id)
 	}
 
-	// --- TOMBOL-TOMBOL DI ATAS LIST ---
+	// --- TOMBOL CONTROL ---
 	addBtn = widget.NewButtonWithIcon(getText("btn_add"), theme.ContentAddIcon(), func() {
 		showAddDownloadDialog()
 	})
@@ -294,7 +316,7 @@ func main() {
 
 	folderCard = widget.NewCard(getText("setting_dir"), "", container.NewBorder(nil, nil, nil, browseBtn, pathEntry))
 
-	categoryForm := container.NewVBox()
+	categoryForm := widget.NewForm()
 	categoryEntries := make(map[string]*widget.Entry)
 
 	for cat := range downloader.DefaultCategories {
@@ -303,12 +325,7 @@ func main() {
 		entry.SetText(savedRules)
 		categoryEntries[cat] = entry
 
-		categoryForm.Add(container.NewBorder(
-			nil, nil,
-			widget.NewLabelWithStyle(cat+":", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-			nil,
-			entry,
-		))
+		categoryForm.Append(cat+":", entry)
 	}
 
 	saveCatBtn = widget.NewButtonWithIcon(getText("btn_save_cat"), theme.DocumentSaveIcon(), func() {
@@ -333,42 +350,37 @@ func main() {
 
 	langContainer := container.NewHBox(langLabel, langSelect)
 
-	// --- FITUR MINIMIZE TO TRAY DI SETTINGS ---
 	minimizeToTrayCheck := widget.NewCheck("Minimize to System Tray on Close", func(checked bool) {
 		prefs.SetBool("MinimizeToTray", checked)
 	})
-	// Konfigurasi awal diambil dari Preference (Default: true)
 	minimizeToTrayCheck.SetChecked(prefs.BoolWithFallback("MinimizeToTray", true))
 
 	settingsTab := container.NewVScroll(container.NewVBox(
 		langContainer,
 		widget.NewSeparator(),
-		minimizeToTrayCheck, // Tambahkan checkbox ke UI Settings
+		minimizeToTrayCheck,
 		widget.NewSeparator(),
 		folderCard,
 		categoryCard,
 		saveCatBtn,
 	))
 
-	// --- SUSUN TABS ---
 	tabs = container.NewAppTabs(
 		container.NewTabItemWithIcon(getText("tab_tasks"), theme.ListIcon(), downloadTab),
 		container.NewTabItemWithIcon(getText("tab_settings"), theme.SettingsIcon(), settingsTab),
 	)
 
-	// Set bahasa terpilih saat baru berjalan
 	if currentLang == "en" {
 		langSelect.SetSelected("English")
 	} else {
 		langSelect.SetSelected("Bahasa Indonesia")
 	}
 
-	// --- SYSTEM TRAY & CLOSE INTERCEPT CONFIGURATION ---
+	// --- SYSTEM TRAY ---
 	if desk, ok := myApp.(desktop.App); ok {
-		// Dapatkan icon default aplikasi untuk Tray
 		icon := myApp.Metadata().Icon
 		if icon == nil {
-			icon = theme.DownloadIcon() // Fallback jika tidak ada icon bawaan
+			icon = theme.DownloadIcon()
 		}
 
 		menu := fyne.NewMenu("GDM",
@@ -380,15 +392,14 @@ func main() {
 		desk.SetSystemTrayIcon(icon)
 	}
 
-	// Atur intersep tombol close (X) di window utama
 	myWindow.SetCloseIntercept(func() {
 		shouldMinimize := prefs.BoolWithFallback("MinimizeToTray", true)
 		_, isDesktop := myApp.(desktop.App)
 
 		if shouldMinimize && isDesktop {
-			myWindow.Hide() // Sembunyikan window (minimize ke tray)
+			myWindow.Hide()
 		} else {
-			myApp.Quit() // Keluar dari aplikasi sepenuhnya
+			myApp.Quit()
 		}
 	})
 
@@ -435,8 +446,8 @@ func showAddDownloadDialog() {
 		getText("dialog_cancel"),
 		scrollContainer,
 		func(confirmed bool) {
-			if confirmed && urlEntry.Text != "" {
-				addNewDownload(urlEntry.Text)
+			if confirmed && strings.TrimSpace(urlEntry.Text) != "" {
+				addNewDownload(strings.TrimSpace(urlEntry.Text))
 			}
 		},
 		myWindow,
@@ -446,47 +457,15 @@ func showAddDownloadDialog() {
 	customDialog.Show()
 }
 
-func showRowContextMenu(item *DownloadItem) {
-	var menuItems []*fyne.MenuItem
-
-	if !item.IsFinished {
-		if item.IsPaused {
-			resumeItem := fyne.NewMenuItem(getText("menu_resume"), func() {
-				resumeDownload(item)
-			})
-			menuItems = append(menuItems, resumeItem)
-		} else {
-			pauseItem := fyne.NewMenuItem(getText("menu_pause"), func() {
-				pauseDownload(item)
-			})
-			menuItems = append(menuItems, pauseItem)
-		}
-
-		refreshAddressItem := fyne.NewMenuItem(getText("menu_refresh"), func() {
-			showRefreshAddressDialog(item)
-		})
-		menuItems = append(menuItems, refreshAddressItem)
-	}
-
-	deleteItem := fyne.NewMenuItem(getText("menu_delete"), func() {
-		removeDownloadItem(item.ID)
-	})
-	menuItems = append(menuItems, deleteItem)
-
-	menu := fyne.NewMenu("", menuItems...)
-	popupMenu := widget.NewPopUpMenu(menu, myWindow.Canvas())
-
-	contentSize := myWindow.Content().Size()
-	centerPosition := fyne.NewPos(contentSize.Width/2-50, contentSize.Height/2-50)
-
-	popupMenu.ShowAtPosition(centerPosition)
-}
-
 // --- ENGINE LOGIKA DOWNLOAD ---
 func addNewDownload(url string) {
 	filename := downloader.GetFilenameFromURLAndHeader(url)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	prefs := myApp.Preferences()
+	baseDir := prefs.String("download_path")
+	categoryRules := getActiveCategoryMap()
+	task := downloader.NewDownloadTask(url, baseDir, categoryRules)
 
 	downloadMutex.Lock()
 	item := &DownloadItem{
@@ -503,43 +482,43 @@ func addNewDownload(url string) {
 		IsPaused:   false,
 		CancelFunc: cancel,
 		Context:    ctx,
+		Task:       task,
 	}
 	nextID++
 	downloads = append(downloads, item)
 	downloadMutex.Unlock()
 
+	saveDownloadsJSON()
 	downloadList.Refresh()
 	go runDownloadRoutine(item)
 }
 
 func runDownloadRoutine(item *DownloadItem) {
-	prefs := myApp.Preferences()
-	baseDir := prefs.String("download_path")
-	categoryRules := getActiveCategoryMap()
+	if item.Task == nil {
+		return
+	}
 
 	var lastDownloaded int64
 	var lastTime = time.Now()
 
-	err := DownloadFileWithContext(
+	err := item.Task.Start(
 		item.Context,
-		item.URL,
-		baseDir,
-		categoryRules,
-		item.Downloaded,
 		func(actualFilename string) {
 			downloadMutex.Lock()
 			item.Filename = actualFilename
 			downloadMutex.Unlock()
-			downloadList.Refresh()
+
+			// BUNGKUS DENGAN fyne.Do
+			fyne.Do(func() {
+				downloadList.Refresh()
+			})
 		},
 		func(progress float64, currentDownloaded int64, size int64) {
 			downloadMutex.Lock()
 			item.Progress = progress
 			item.Status = "status_down"
 			item.Downloaded = currentDownloaded
-			if size > 0 {
-				item.TotalSize = size
-			}
+			item.TotalSize = size
 
 			now := time.Now()
 			duration := now.Sub(lastTime).Seconds()
@@ -551,13 +530,18 @@ func runDownloadRoutine(item *DownloadItem) {
 			}
 			downloadMutex.Unlock()
 
-			downloadList.Refresh()
+			saveDownloadsJSON()
+
+			// BUNGKUS DENGAN fyne.Do
+			fyne.Do(func() {
+				downloadList.Refresh()
+			})
 		},
 	)
 
 	downloadMutex.Lock()
 	if err != nil {
-		if item.IsPaused {
+		if item.IsPaused || errors.Is(err, context.Canceled) {
 			item.Status = "status_paused"
 			item.Speed = ""
 		} else {
@@ -572,16 +556,26 @@ func runDownloadRoutine(item *DownloadItem) {
 		item.IsFinished = true
 	}
 	downloadMutex.Unlock()
-	downloadList.Refresh()
+
+	saveDownloadsJSON()
+
+	// BUNGKUS DENGAN fyne.Do KETIKA SELESAI/GAGAL
+	fyne.Do(func() {
+		downloadList.Refresh()
+	})
 }
 
 func pauseDownload(item *DownloadItem) {
 	downloadMutex.Lock()
 	if !item.IsFinished && !item.IsPaused {
 		item.IsPaused = true
-		item.CancelFunc()
+		if item.CancelFunc != nil {
+			item.CancelFunc()
+		}
 	}
 	downloadMutex.Unlock()
+
+	saveDownloadsJSON()
 	downloadList.Refresh()
 }
 
@@ -596,6 +590,8 @@ func resumeDownload(item *DownloadItem) {
 		go runDownloadRoutine(item)
 	}
 	downloadMutex.Unlock()
+
+	saveDownloadsJSON()
 	downloadList.Refresh()
 }
 
@@ -613,9 +609,9 @@ func showRefreshAddressDialog(item *DownloadItem) {
 		"Cancel",
 		container.NewScroll(form),
 		func(confirmed bool) {
-			if confirmed && urlEntry.Text != "" {
+			if confirmed && strings.TrimSpace(urlEntry.Text) != "" {
 				downloadMutex.Lock()
-				item.URL = urlEntry.Text
+				item.URL = strings.TrimSpace(urlEntry.Text)
 				downloadMutex.Unlock()
 				resumeDownload(item)
 			}
@@ -645,6 +641,8 @@ func clearFinishedDownloads() {
 	}
 	downloads = activeDownloads
 	downloadMutex.Unlock()
+
+	saveDownloadsJSON()
 	downloadList.Refresh()
 }
 
@@ -665,88 +663,9 @@ func removeDownloadItem(id int) {
 		downloads = append(downloads[:indexToHapus], downloads[indexToHapus+1:]...)
 	}
 	downloadMutex.Unlock()
+
+	saveDownloadsJSON()
 	downloadList.Refresh()
-}
-
-func DownloadFileWithContext(
-	ctx context.Context,
-	url string,
-	baseDir string,
-	categoryRules map[string]string,
-	offset int64,
-	onFilenameSelected func(string),
-	onProgress func(float64, int64, int64),
-) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return err
-	}
-
-	if offset > 0 {
-		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
-		return fmt.Errorf("server returned status: %s", resp.Status)
-	}
-
-	filename := downloader.GetFilenameFromURLAndHeader(url)
-	onFilenameSelected(filename)
-
-	savePath := filepath.Join(baseDir, filename)
-
-	var file *os.File
-	if offset > 0 {
-		file, err = os.OpenFile(savePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
-	} else {
-		file, err = os.Create(savePath)
-	}
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	totalSize := resp.ContentLength
-	if offset > 0 {
-		totalSize += offset
-	}
-
-	buffer := make([]byte, 32*1024)
-	var accumulated = offset
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			n, err := resp.Body.Read(buffer)
-			if n > 0 {
-				_, writeErr := file.Write(buffer[:n])
-				if writeErr != nil {
-					return writeErr
-				}
-				accumulated += int64(n)
-
-				var progress float64 = -1
-				if totalSize > 0 {
-					progress = float64(accumulated) / float64(totalSize)
-				}
-				onProgress(progress, accumulated, totalSize)
-			}
-			if err != nil {
-				if err == io.EOF {
-					return nil
-				}
-				return err
-			}
-		}
-	}
 }
 
 func loadCategoryRules(prefs fyne.Preferences) {
@@ -780,15 +699,17 @@ func startBackgroundServer() {
 		if r.Method == "POST" {
 			var req DownloadRequest
 			err := json.NewDecoder(r.Body).Decode(&req)
-			if err != nil || req.URL == "" {
+			if err != nil || strings.TrimSpace(req.URL) == "" {
 				http.Error(w, "Bad Request", http.StatusBadRequest)
 				return
 			}
 
-			myWindow.Show()
-			myWindow.RequestFocus()
-
-			addNewDownload(req.URL)
+			// BUNGKUS OPERASI WINDOW & ADD DOWNLOAD DENGAN fyne.Do
+			fyne.Do(func() {
+				myWindow.Show()
+				myWindow.RequestFocus()
+				addNewDownload(strings.TrimSpace(req.URL))
+			})
 
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"status": "queued"}`))
@@ -798,11 +719,11 @@ func startBackgroundServer() {
 	})
 
 	if err := http.ListenAndServe("localhost:18080", nil); err != nil {
-		panic(err)
+		fmt.Println("Server Error:", err)
 	}
 }
 
-// rightClickableContainer adalah widget kustom untuk mendeteksi klik kanan (TappedSecondary)
+// Right Clickable Container
 type rightClickableContainer struct {
 	widget.BaseWidget
 	Container fyne.CanvasObject
@@ -829,8 +750,21 @@ func (r *rightClickableContainer) TappedSecondary(event *fyne.PointEvent) {
 
 func showRowContextMenuAt(item *DownloadItem, pos fyne.Position) {
 	var menuItems []*fyne.MenuItem
+	fullPath := resolveFilePath(item)
 
-	if !item.IsFinished {
+	if item.IsFinished {
+		openFileItem := fyne.NewMenuItem(getText("menu_open_file"), func() {
+			openFile(fullPath)
+		})
+		menuItems = append(menuItems, openFileItem)
+
+		openFolderItem := fyne.NewMenuItem(getText("menu_open_folder"), func() {
+			openContainingFolder(fullPath)
+		})
+		menuItems = append(menuItems, openFolderItem)
+
+		menuItems = append(menuItems, fyne.NewMenuItemSeparator())
+	} else {
 		if item.IsPaused {
 			resumeItem := fyne.NewMenuItem(getText("menu_resume"), func() {
 				resumeDownload(item)
@@ -847,15 +781,234 @@ func showRowContextMenuAt(item *DownloadItem, pos fyne.Position) {
 			showRefreshAddressDialog(item)
 		})
 		menuItems = append(menuItems, refreshAddressItem)
+
+		menuItems = append(menuItems, fyne.NewMenuItemSeparator())
 	}
 
-	deleteItem := fyne.NewMenuItem(getText("menu_delete"), func() {
+	deleteTaskItem := fyne.NewMenuItem(getText("menu_delete"), func() {
 		removeDownloadItem(item.ID)
 	})
-	menuItems = append(menuItems, deleteItem)
+	menuItems = append(menuItems, deleteTaskItem)
+
+	deleteFileItem := fyne.NewMenuItem(getText("menu_delete_file"), func() {
+		dialog.ShowConfirm(
+			getText("dialog_del_title"),
+			getText("dialog_del_msg")+"\n\n"+item.Filename,
+			func(confirmed bool) {
+				if confirmed {
+					err := os.Remove(fullPath)
+					if err != nil {
+						fmt.Println("Gagal menghapus file dari disk:", err)
+					}
+					removeDownloadItem(item.ID)
+				}
+			},
+			myWindow,
+		)
+	})
+	menuItems = append(menuItems, deleteFileItem)
 
 	menu := fyne.NewMenu("", menuItems...)
 	popupMenu := widget.NewPopUpMenu(menu, myWindow.Canvas())
-
 	popupMenu.ShowAtPosition(pos)
+}
+
+func openFile(filePath string) {
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", filePath)
+	case "darwin":
+		cmd = exec.Command("open", filePath)
+	default:
+		cmd = exec.Command("xdg-open", filePath)
+	}
+
+	_ = cmd.Start()
+}
+
+func openContainingFolder(filePath string) {
+	folder := filepath.Dir(filePath)
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("explorer", "/select,", filePath)
+	case "darwin":
+		cmd = exec.Command("open", "-R", filePath)
+	default:
+		cmd = exec.Command("xdg-open", folder)
+	}
+
+	_ = cmd.Start()
+}
+
+const dataFileName = "downloads.json"
+
+type DownloadItemSave struct {
+	ID         int     `json:"id"`
+	Filename   string  `json:"filename"`
+	URL        string  `json:"url"`
+	Progress   float64 `json:"progress"`
+	Status     string  `json:"status"`
+	Downloaded int64   `json:"downloaded"`
+	TotalSize  int64   `json:"total_size"`
+	Speed      string  `json:"speed"`
+	DateAdded  string  `json:"date_added"`
+	IsFinished bool    `json:"is_finished"`
+	IsPaused   bool    `json:"is_paused"`
+}
+
+func getStorageFilePath() string {
+	if myApp != nil && myApp.Storage() != nil && myApp.Storage().RootURI() != nil {
+		path := myApp.Storage().RootURI().Path()
+		if path != "" {
+			_ = os.MkdirAll(path, 0755)
+			return filepath.Join(path, dataFileName)
+		}
+	}
+	return dataFileName
+}
+
+func saveDownloadsJSON() {
+	downloadMutex.Lock()
+	defer downloadMutex.Unlock()
+
+	var saveList []DownloadItemSave
+	for _, item := range downloads {
+		saveList = append(saveList, DownloadItemSave{
+			ID:         item.ID,
+			Filename:   item.Filename,
+			URL:        item.URL,
+			Progress:   item.Progress,
+			Status:     item.Status,
+			Downloaded: item.Downloaded,
+			TotalSize:  item.TotalSize,
+			Speed:      item.Speed,
+			DateAdded:  item.DateAdded,
+			IsFinished: item.IsFinished,
+			IsPaused:   item.IsPaused,
+		})
+	}
+
+	data, err := json.MarshalIndent(saveList, "", "  ")
+	if err != nil {
+		fmt.Println("Error Marshal JSON:", err)
+		return
+	}
+
+	filePath := getStorageFilePath()
+	err = os.WriteFile(filePath, data, 0644)
+	if err != nil {
+		fmt.Println("Error Write JSON File:", err)
+	}
+}
+
+func loadDownloadsJSON() {
+	downloadMutex.Lock()
+	defer downloadMutex.Unlock()
+
+	filePath := getStorageFilePath()
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return
+	}
+
+	var loadedData []DownloadItemSave
+	if err := json.Unmarshal(data, &loadedData); err != nil {
+		fmt.Println("Error Unmarshal JSON:", err)
+		return
+	}
+
+	downloads = nil
+	maxID := 0
+
+	for _, s := range loadedData {
+		if s.ID > maxID {
+			maxID = s.ID
+		}
+
+		status := s.Status
+		isPaused := s.IsPaused
+		if status == "status_down" || status == "status_conn" {
+			status = "status_paused"
+			isPaused = true
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		prefs := myApp.Preferences()
+		baseDir := prefs.String("download_path")
+		categoryRules := getActiveCategoryMap()
+		task := downloader.NewDownloadTask(s.URL, baseDir, categoryRules)
+
+		item := &DownloadItem{
+			ID:         s.ID,
+			Filename:   s.Filename,
+			URL:        s.URL,
+			Progress:   s.Progress,
+			Status:     status,
+			Downloaded: s.Downloaded,
+			TotalSize:  s.TotalSize,
+			Speed:      s.Speed,
+			DateAdded:  s.DateAdded,
+			IsFinished: s.IsFinished,
+			IsPaused:   isPaused,
+			CancelFunc: cancel,
+			Context:    ctx,
+			Task:       task,
+		}
+		downloads = append(downloads, item)
+	}
+	nextID = maxID + 1
+}
+
+func resolveFilePath(item *DownloadItem) string {
+	prefs := myApp.Preferences()
+	baseDir := prefs.String("download_path")
+
+	// 1. Cek langsung di folder utama Downloads
+	directPath := filepath.Join(baseDir, item.Filename)
+	if _, err := os.Stat(directPath); err == nil {
+		return directPath
+	}
+
+	// 2. Cek berdasarkan ekstensi di daftar kategori
+	categoryRules := getActiveCategoryMap()
+	ext := strings.ToLower(filepath.Ext(item.Filename))
+
+	for cat, exts := range categoryRules {
+		rawExtList := strings.Split(exts, ",")
+		for _, e := range rawExtList {
+			cleanExt := strings.ToLower(strings.TrimSpace(e))
+			if cleanExt == "" {
+				continue
+			}
+			if !strings.HasPrefix(cleanExt, ".") {
+				cleanExt = "." + cleanExt
+			}
+
+			if cleanExt == ext {
+				catPath := filepath.Join(baseDir, cat, item.Filename)
+				if _, err := os.Stat(catPath); err == nil {
+					return catPath
+				}
+			}
+		}
+	}
+
+	// 3. Fallback scan semua subfolder
+	entries, err := os.ReadDir(baseDir)
+	if err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				subPath := filepath.Join(baseDir, entry.Name(), item.Filename)
+				if _, err := os.Stat(subPath); err == nil {
+					return subPath
+				}
+			}
+		}
+	}
+
+	return directPath
 }
